@@ -5,8 +5,7 @@ import com.typesafe.config.ConfigFactory
 import net.wiringbits.sdb.config.DiscordConfig
 import org.slf4j.LoggerFactory
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.util.{Failure, Success}
 
 object Main extends {
 
@@ -19,16 +18,20 @@ object Main extends {
     val clientSettings = ClientSettings(discordConfig.token)
     import clientSettings.executionContext
 
-    // In real code, please don't block on the client construction
     logger.info("Starting client")
-    val client = Await.result(clientSettings.createClient(), Duration.Inf)
+    clientSettings.createClient().onComplete {
+      case Success(client) =>
+        val discordAPI = new DiscordAPI(discordConfig.whitelistedServersConfig, client)
+        val sharedState = new SharedState
+        val eventHandler = new DiscordEventHandler(discordAPI, sharedState)
+        client.onEventSideEffects { c =>
+          eventHandler.handler()(c)
+        }
+        client.login()
 
-    val discordAPI = new DiscordAPI(discordConfig.whitelistedServersConfig, client)
-    val sharedState = new SharedState
-    val eventHandler = new DiscordEventHandler(discordAPI, sharedState)
-    client.onEventSideEffects { c =>
-      eventHandler.handler()(c)
+      case Failure(ex) =>
+        logger.error("Failed to create the discord client, exiting...", ex)
+        sys.exit(1)
     }
-    client.login()
   }
 }
