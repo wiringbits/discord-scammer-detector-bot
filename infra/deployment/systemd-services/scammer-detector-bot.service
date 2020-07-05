@@ -1,0 +1,16 @@
+[Unit]
+Description=Discord Scammer Detector Bot
+
+[Service]
+Type=simple
+WorkingDirectory=/home/play
+StandardOutput=tty
+StandardError=tty
+# EnvironmentFile=/home/play/app/.env
+LimitNOFILE=65535
+User=play
+ExecStart=/usr/bin/java -jar /home/play/app.jar
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
