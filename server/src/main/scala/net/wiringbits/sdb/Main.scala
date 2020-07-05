@@ -24,7 +24,7 @@ object Main extends {
     val client = Await.result(clientSettings.createClient(), Duration.Inf)
 
     val discordAPI = new DiscordAPI(discordConfig.whitelistedServersConfig, client)
-    val sharedState = new SharedState(discordConfig.whitelistedServersConfig)
+    val sharedState = new SharedState
     val eventHandler = new DiscordEventHandler(discordAPI, sharedState)
     client.onEventSideEffects { c =>
       eventHandler.handler()(c)

@@ -1,6 +1,7 @@
 package net.wiringbits.sdb
 
-import ackcord.data.{GuildChannel, GuildId, TextChannelId}
+import ackcord.data.raw.RawGuildMember
+import ackcord.data.{GuildChannel, GuildId, TextChannelId, User, UserId}
 import ackcord.requests.{CreateMessage, CreateMessageData, GetCurrentUserGuildsData, GetUserGuildsGuild}
 import ackcord.{CacheSnapshot, DiscordClient}
 import net.wiringbits.sdb.config.{DiscordServerConfig, WhitelistedServersConfig}
@@ -39,6 +40,13 @@ class DiscordAPI(config: WhitelistedServersConfig, client: DiscordClient)(implic
       .run(request)
       .value
       .map(_.getOrElse(List.empty))
+  }
+
+  def getMember(guildId: GuildId, userId: UserId)(implicit c: CacheSnapshot): Future[Option[RawGuildMember]] = {
+    val request = ackcord.requests.GetGuildMember(guildId, userId)
+    client.requestsHelper
+      .run(request)
+      .value
   }
 
   def getChannels(guildId: GuildId)(implicit c: CacheSnapshot): Future[Seq[GuildChannel]] = {

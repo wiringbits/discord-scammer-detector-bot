@@ -1,23 +1,26 @@
 package net.wiringbits.sdb
 
 import ackcord.data.{GuildChannel, GuildId}
-import net.wiringbits.sdb.config.WhitelistedServersConfig
 
-class SharedState(config: WhitelistedServersConfig) {
-  private var channels: List[GuildChannel] = List.empty
+class SharedState {
+  import SharedState._
 
-  def addChannel(channel: GuildChannel): Unit = synchronized {
+  private var channels: List[Channel] = List.empty
+
+  def addChannel(channel: Channel): Unit = synchronized {
     channels = channel :: channels
   }
 
-  def findBy(guildId: GuildId): Option[GuildChannel] = channels.find(_.guildId == guildId)
+  def findBy(guildId: GuildId): Option[Channel] = channels.find(_.guildChannel.id == guildId)
 
-  def whitelistedMembers(guildId: GuildId): List[String] = {
-    val nameMaybe = channels.find(_.guildId == guildId).map(_.name)
-
-    config.servers
-      .find(nameMaybe.contains)
+  def teamMembers(guildId: GuildId): List[TeamMember] = {
+    channels
+      .find(_.guildChannel.id == guildId)
       .map(_.members)
       .getOrElse(List.empty)
   }
+}
+
+object SharedState {
+  case class Channel(guildChannel: GuildChannel, members: List[TeamMember])
 }
