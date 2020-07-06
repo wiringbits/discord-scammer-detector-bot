@@ -9,6 +9,12 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
+/**
+ * Processes the events produced by discord, we are particularly interested on:
+ * - Members joining
+ * - Members updated
+ * - The client is ready
+ */
 class DiscordEventHandler(
     discordAPI: DiscordAPI,
     sharedState: SharedState
@@ -20,9 +26,7 @@ class DiscordEventHandler(
 
   def handler()(implicit c: CacheSnapshot): PartialFunction[APIMessage, Unit] = {
     case _: APIMessage.Ready => initialize()
-
-    case e: APIMessage.GuildCreate =>
-      logger.info(s"Bot installed on ${e.guild.name}")
+    case e: APIMessage.GuildCreate => logger.info(s"Bot installed on ${e.guild.name}")
 
     case e: APIMessage.GuildMemberAdd =>
       logger.info(s"${e.guild.name} - Member add: nickname = ${e.member.nick}, ${e.member.user.map(_.username)}")
@@ -40,26 +44,7 @@ class DiscordEventHandler(
         }
   }
 
-  private def getMembers(guildId: GuildId, ids: List[String])(implicit c: CacheSnapshot): Future[List[TeamMember]] = {
-    val f = ids
-      .flatMap { id =>
-        Try(UserId(id)).toOption
-      }
-      .map { id =>
-        val userId = UserId(id)
-        discordAPI
-          .getMember(guildId, userId)
-          .recover {
-            case NonFatal(ex) =>
-              logger.warn(s"Can't resolve member = $id, guild = $guildId", ex)
-              None
-          }
-      }
-    Future.sequence(f).map(_.flatten).map { list =>
-      list.map(raw => TeamMember(raw))
-    }
-  }
-
+  // When the client is ready, initialize the shared state, so that we sync the config with discord.
   private def initialize()(implicit c: CacheSnapshot): Unit = {
     logger.info("Client ready, initializing")
 
@@ -68,7 +53,7 @@ class DiscordEventHandler(
         .getNotificationChannel(guildId, config)
         .flatMap {
           case None => throw new RuntimeException(s"Missing notification channel for guild = $guildId")
-          case Some(channel) => getMembers(guildId, config.members).map(SharedState.Channel(channel, _))
+          case Some(channel) => getMembers(guildId, config.members).map(SharedState.ServerDetails(channel, _))
         }
     }
 
@@ -82,8 +67,8 @@ class DiscordEventHandler(
     } yield {
       guildChannels.foreach { channel =>
         val members = channel.members.map(_.raw.user.username).mkString(" | ")
-        logger.info(s"Members for guild = ${channel.guildChannel.name}, synced: $members")
-        sharedState.addChannel(channel)
+        logger.info(s"Members for guild = ${channel.notificationChannel.name}, synced: $members")
+        sharedState.add(channel)
       }
     }
 
@@ -95,7 +80,13 @@ class DiscordEventHandler(
     }
   }
 
-  private def handleUser(channel: SharedState.Channel, user: User, nick: Option[String])(
+  /**
+   * For every new user or user updated, let's find whether it's a potential scammer, the rules are:
+   * - If the user is one of the configured members, do nothing.
+   * - Check the Levenshtein Distance from the user (nickname, username) against every configured
+   *   member (nickname, username), notify to the configured channel if we find it to be quite similar.
+   */
+  private def handleUser(channel: SharedState.ServerDetails, user: User, nick: Option[String])(
       implicit c: CacheSnapshot
   ): Unit = {
     if (channel.members.exists(_.raw.user.id == user.id)) {
@@ -119,13 +110,42 @@ class DiscordEventHandler(
     }
   }
 
+  /**
+   * For now just send a notification to the configured channel about the potential scammer
+   */
   private def handlePotentialScammer(
-      channel: SharedState.Channel,
+      channel: SharedState.ServerDetails,
       scammerMention: String,
       relatedTeamMember: TeamMember
   )(implicit c: CacheSnapshot): Unit = {
     val msg =
       s"Potential scammer: $scammerMention looks very similar to our team member ${relatedTeamMember.raw.user.mention}"
-    discordAPI.sendMessage(channel.guildChannel, msg)
+    discordAPI.sendMessage(channel.notificationChannel, msg)
+  }
+
+  /**
+   * Given the member ids for a guild, let's sync their data from discord, so that we know their
+   * usernames and nicknames while looking for potential scammers.
+   */
+  private def getMembers(guildId: GuildId, ids: List[String])(implicit c: CacheSnapshot): Future[List[TeamMember]] = {
+    val f = ids
+      .flatMap { id =>
+        Try(UserId(id)).toOption
+      }
+      .map { id =>
+        val userId = UserId(id)
+        discordAPI
+          .getMember(guildId, userId)
+          .recover {
+            case NonFatal(ex) =>
+              // for now, just log unresolved members, likely the config needs to be updated
+              logger.warn(s"Can't resolve member = $id, guild = $guildId", ex)
+              None
+          }
+      }
+
+    Future.sequence(f).map(_.flatten).map { list =>
+      list.map(raw => TeamMember(raw))
+    }
   }
 }
