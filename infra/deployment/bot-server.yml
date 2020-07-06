@@ -44,6 +44,14 @@
         owner: play
         group: play
 
+    - name: Set the bot config
+      become: yes
+      copy:
+        src: config/bot.env
+        dest: /home/play/.env
+        owner: play
+        group: play
+
     - name: Set the application files permissions
       become: yes
       file:
