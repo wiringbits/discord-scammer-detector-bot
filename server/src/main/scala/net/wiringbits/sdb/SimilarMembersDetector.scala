@@ -20,10 +20,18 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   }
 
   def findSimilarMember(username: String): Option[TeamMember] = {
-    val lowerCaseUsername = username.toLowerCase
+    val normalizedUsername = normalize(username)
     members.find { team =>
-      test(team.raw.user.username.toLowerCase, lowerCaseUsername) ||
-      team.raw.nick.exists(x => test(x.toLowerCase, lowerCaseUsername))
+      test(normalize(team.raw.user.username), normalizedUsername) ||
+      team.raw.nick.exists(x => test(normalize(x.toLowerCase), normalizedUsername))
     }
+  }
+
+  /**
+   * For now, just lower case and take everything between the character 20 and 255,
+   * ignoring anything else.
+   */
+  private def normalize(username: String): String = {
+    username.toLowerCase.filter(c => c >= 20 && c <= 255)
   }
 }
