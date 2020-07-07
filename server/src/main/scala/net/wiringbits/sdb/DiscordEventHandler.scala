@@ -31,14 +31,24 @@ class DiscordEventHandler(
     case e: APIMessage.GuildMemberAdd =>
       logger.info(s"${e.guild.name} - Member add: nickname = ${e.member.nick}, ${e.member.user.map(_.username)}")
       for {
-        channel <- sharedState.findBy(e.guild.id)
-        user <- e.member.user
+        channel <- sharedState.findBy(e.guild.id).orElse {
+          logger.warn(s"No shared state found for guild = ${e.guild.id}")
+          None
+        }
+        user <- e.member.user.orElse {
+          logger.warn(s"No user found in the snapshot for id = ${e.member.userId}, nick = ${e.member.nick}")
+          None
+        }
       } yield handleUser(channel, user, e.member.nick)
 
     case e: APIMessage.GuildMemberUpdate =>
       logger.info(s"${e.guild.name} - Member update: newNickname = ${e.nick}, username = ${e.user.username}")
       sharedState
         .findBy(e.guild.id)
+        .orElse {
+          logger.warn(s"No shared state found for guild = ${e.guild.id}")
+          None
+        }
         .foreach { channel =>
           handleUser(channel, e.user, e.nick)
         }
@@ -89,17 +99,23 @@ class DiscordEventHandler(
   private def handleUser(channel: SharedState.ServerDetails, user: User, nick: Option[String])(
       implicit c: CacheSnapshot
   ): Unit = {
+    logger.info(s"Handling member, ${user.username}, nick = $nick, id = ${user.id}")
     if (channel.members.exists(_.raw.user.id == user.id)) {
       // a trusted member can change it's nickname
+      logger.info(s"A team member is changing it's nickname, user = ${user.username}, nick = $nick, id = ${user.id}")
       ()
     } else {
       val similarMembersDetector = new SimilarMembersDetector(channel.members)
       similarMembersDetector
         .findSimilarMember(user.username)
         .orElse { nick.flatMap(similarMembersDetector.findSimilarMember) }
+        .orElse {
+          logger.info(s"No matches found for ${user.username}, nick = $nick, id = ${user.id}")
+          None
+        }
         .foreach { relatedTeamMember =>
-          logger.info(
-            s"Found potential scammer: ${user.username}, nick = $nick, similar to ${relatedTeamMember.raw.user.username}"
+          logger.warn(
+            s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${relatedTeamMember.raw.user.username}"
           )
           handlePotentialScammer(
             channel,
