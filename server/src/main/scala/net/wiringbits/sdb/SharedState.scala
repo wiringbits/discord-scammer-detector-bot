@@ -10,21 +10,23 @@ import ackcord.data.{GuildChannel, GuildId}
 class SharedState {
   import SharedState._
 
-  private var servers: List[ServerDetails] = List.empty
+  private var servers: Map[GuildId, ServerDetails] = Map.empty
 
   /**
    * The lock is not a problem because this is called only when the bot gets connected
    * to the discord server.
    */
   def add(server: ServerDetails): Unit = synchronized {
-    servers = server :: servers
+    servers = servers + (server.notificationChannel.guildId -> server)
   }
 
-  def findBy(guildId: GuildId): Option[ServerDetails] = servers.find(_.notificationChannel.id == guildId)
+  def findBy(guildId: GuildId): Option[ServerDetails] = {
+    servers.get(guildId)
+  }
 
   def teamMembers(guildId: GuildId): List[TeamMember] = {
     servers
-      .find(_.notificationChannel.id == guildId)
+      .get(guildId)
       .map(_.members)
       .getOrElse(List.empty)
   }
