@@ -23,7 +23,7 @@ class SimilarMembersDetector(members: List[TeamMember]) {
     val normalizedUsername = normalize(username)
     members.find { team =>
       test(normalize(team.raw.user.username), normalizedUsername) ||
-      team.raw.nick.exists(x => test(normalize(x.toLowerCase), normalizedUsername))
+      team.raw.nick.exists(x => test(normalize(x), normalizedUsername))
     }
   }
 
