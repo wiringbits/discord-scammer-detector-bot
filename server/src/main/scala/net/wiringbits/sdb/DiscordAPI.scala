@@ -2,7 +2,13 @@ package net.wiringbits.sdb
 
 import ackcord.data.raw.RawGuildMember
 import ackcord.data.{GuildChannel, GuildId, TextChannelId, UserId}
-import ackcord.requests.{CreateMessage, CreateMessageData, GetCurrentUserGuildsData, GetUserGuildsGuild}
+import ackcord.requests.{
+  CreateGuildBanData,
+  CreateMessage,
+  CreateMessageData,
+  GetCurrentUserGuildsData,
+  GetUserGuildsGuild
+}
 import ackcord.{CacheSnapshot, DiscordClient}
 import net.wiringbits.sdb.config.{DiscordServerConfig, WhitelistedServersConfig}
 import org.slf4j.LoggerFactory
@@ -51,6 +57,15 @@ class DiscordAPI(config: WhitelistedServersConfig, client: DiscordClient)(implic
     client.requestsHelper
       .run(request)
       .value
+  }
+
+  def banMember(guildId: GuildId, userId: UserId)(implicit c: CacheSnapshot): Future[Unit] = {
+    val params = CreateGuildBanData(None, reason = Some("Scammer detected"))
+    val request = ackcord.requests.CreateGuildBan(guildId, userId, queryParams = params, reason = params.reason)
+    client.requestsHelper
+      .run(request)
+      .value
+      .map(_ => ())
   }
 
   /**

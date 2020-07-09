@@ -119,8 +119,8 @@ class DiscordEventHandler(
           )
           handlePotentialScammer(
             channel,
-            relatedTeamMember = relatedTeamMember,
-            scammerMention = user.mention
+            user,
+            relatedTeamMember = relatedTeamMember
           )
         }
     }
@@ -131,12 +131,25 @@ class DiscordEventHandler(
    */
   private def handlePotentialScammer(
       channel: SharedState.ServerDetails,
-      scammerMention: String,
+      scammer: User,
       relatedTeamMember: TeamMember
   )(implicit c: CacheSnapshot): Unit = {
-    val msg =
-      s"Potential scammer: $scammerMention looks very similar to our team member ${relatedTeamMember.raw.user.mention}"
-    discordAPI.sendMessage(channel.notificationChannel, msg)
+    discordAPI.banMember(channel.notificationChannel.guildId, scammer.id).onComplete {
+      case Success(_) =>
+        val msg =
+          s"Potential scammer banned! ${scammer.mention} looks very similar to our team member ${relatedTeamMember.raw.user.mention}"
+        discordAPI.sendMessage(channel.notificationChannel, msg)
+
+      case Failure(ex) =>
+        logger.warn(
+          s"Failed to ban potential scammer, guild = ${channel.notificationChannel.guildId}, id = ${scammer.id}, username = ${scammer.username}, relalted to ${relatedTeamMember.raw.user.username}",
+          ex
+        )
+
+        val msg =
+          s"Potential scammer needs to be banned manually: ${scammer.mention} looks very similar to our team member ${relatedTeamMember.raw.user.mention}"
+        discordAPI.sendMessage(channel.notificationChannel, msg)
+    }
   }
 
   /**
