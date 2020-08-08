@@ -2,13 +2,7 @@ package net.wiringbits.sdb
 
 import ackcord.data.raw.RawGuildMember
 import ackcord.data.{GuildChannel, GuildId, TextChannelId, UserId}
-import ackcord.requests.{
-  CreateGuildBanData,
-  CreateMessage,
-  CreateMessageData,
-  GetCurrentUserGuildsData,
-  GetUserGuildsGuild
-}
+import ackcord.requests._
 import ackcord.{CacheSnapshot, DiscordClient}
 import net.wiringbits.sdb.config.{DiscordServerConfig, WhitelistedServersConfig}
 import org.slf4j.LoggerFactory
@@ -57,6 +51,32 @@ class DiscordAPI(config: WhitelistedServersConfig, client: DiscordClient)(implic
     client.requestsHelper
       .run(request)
       .value
+  }
+
+  /**
+   * Get all the members.
+   */
+  def getAllMembers(guildId: GuildId)(implicit c: CacheSnapshot): Future[Seq[RawGuildMember]] = {
+    def internal(lastSeen: Option[RawGuildMember]): Future[Seq[RawGuildMember]] = {
+      val query = lastSeen
+        .map(raw => ListGuildMembersData(after = Some(raw.user.id)))
+        .getOrElse(ListGuildMembersData())
+        .copy(limit = Some(1000))
+
+      val request = ackcord.requests.ListGuildMembers(guildId, query)
+      client.requestsHelper
+        .run(request)
+        .value
+        .map(_.getOrElse(List.empty))
+        .flatMap { current =>
+          current.lastOption
+            .map(last => internal(Some(last)))
+            .getOrElse(Future.successful(Seq.empty))
+            .map(current ++ _)
+        }
+    }
+
+    internal(None)
   }
 
   def banMember(guildId: GuildId, userId: UserId)(implicit c: CacheSnapshot): Future[Unit] = {
