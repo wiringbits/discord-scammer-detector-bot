@@ -11,7 +11,7 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   // Similarities smaller that this value lead to potential scammers
   // Higher values means slower runtime, and leads to most matches but anything above 3
   // is likely very annoying.
-  private val DistanceThreshold = 2
+  private val DistanceThreshold = 1
   private val distance = new LevenshteinDistance(DistanceThreshold)
 
   private def test(member: String, other: String): Boolean = {
