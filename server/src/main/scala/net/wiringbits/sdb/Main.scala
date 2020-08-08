@@ -1,6 +1,7 @@
 package net.wiringbits.sdb
 
 import ackcord._
+import ackcord.gateway.GatewayIntents
 import com.typesafe.config.ConfigFactory
 import net.wiringbits.sdb.config.DiscordConfig
 import org.slf4j.LoggerFactory
@@ -15,7 +16,9 @@ object Main extends {
     val config = ConfigFactory.load().getConfig("discord")
     val discordConfig = DiscordConfig(config)
 
-    val clientSettings = ClientSettings(discordConfig.token)
+    val clientSettings =
+      ClientSettings(discordConfig.token, intents = GatewayIntents.Guilds ++ GatewayIntents.GuildMembers)
+
     import clientSettings.executionContext
 
     logger.info("Starting client")
