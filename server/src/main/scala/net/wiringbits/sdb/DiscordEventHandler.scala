@@ -136,7 +136,7 @@ class DiscordEventHandler(
       channel: SharedState.ServerDetails,
       user: User,
       nick: Option[String]
-  ): Option[TeamMember] = {
+  ): Option[SimilarTeamMember] = {
     if (channel.members.exists(_.raw.user.id == user.id)) {
       // a trusted member can change it's nickname
       None
@@ -164,7 +164,7 @@ class DiscordEventHandler(
       }
       .foreach { relatedTeamMember =>
         logger.warn(
-          s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${relatedTeamMember.raw.user.username}"
+          s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${relatedTeamMember.teamMember.raw.user.username}"
         )
         handlePotentialScammer(
           channel,
@@ -180,23 +180,33 @@ class DiscordEventHandler(
   private def handlePotentialScammer(
       channel: SharedState.ServerDetails,
       scammer: User,
-      relatedTeamMember: TeamMember
+      relatedTeamMember: SimilarTeamMember
   )(implicit c: CacheSnapshot): Unit = {
-    discordAPI.banMember(channel.notificationChannel.guildId, scammer.id).onComplete {
-      case Success(_) =>
-        val msg =
-          s"Potential scammer banned! ${scammer.mention} looks very similar to our team member ${relatedTeamMember.raw.user.mention}"
-        discordAPI.sendMessage(channel.notificationChannel, msg)
+    def doBan(): Unit = {
+      discordAPI.banMember(channel.notificationChannel.guildId, scammer.id).onComplete {
+        case Success(_) =>
+          val msg =
+            s"Potential scammer banned! ${scammer.mention} looks very similar to our team member ${relatedTeamMember.teamMember.raw.user.mention}"
+          discordAPI.sendMessage(channel.notificationChannel, msg)
 
-      case Failure(ex) =>
-        logger.warn(
-          s"Failed to ban potential scammer, guild = ${channel.notificationChannel.guildId}, id = ${scammer.id}, username = ${scammer.username}, relalted to ${relatedTeamMember.raw.user.username}",
-          ex
-        )
+        case Failure(ex) =>
+          logger.warn(
+            s"Failed to ban potential scammer, guild = ${channel.notificationChannel.guildId}, id = ${scammer.id}, username = ${scammer.username}, relalted to ${relatedTeamMember.teamMember.raw.user.username}",
+            ex
+          )
 
-        val msg =
-          s"Potential scammer needs to be banned manually: ${scammer.mention} looks very similar to our team member ${relatedTeamMember.raw.user.mention}"
-        discordAPI.sendMessage(channel.notificationChannel, msg)
+          val msg =
+            s"Potential scammer needs to be banned manually: ${scammer.mention} looks very similar to our team member ${relatedTeamMember.teamMember.raw.user.mention}"
+          discordAPI.sendMessage(channel.notificationChannel, msg)
+      }
+    }
+
+    if (relatedTeamMember.exactMatch) {
+      doBan()
+    } else {
+      val msg =
+        s"@everyone Potential scammer needs to be verified manually: ${scammer.mention} looks very similar to our team member ${relatedTeamMember.teamMember.raw.user.mention}"
+      discordAPI.sendMessage(channel.notificationChannel, msg)
     }
   }
 

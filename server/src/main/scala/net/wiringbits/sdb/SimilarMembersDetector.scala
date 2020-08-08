@@ -19,12 +19,21 @@ class SimilarMembersDetector(members: List[TeamMember]) {
     x >= 0 && x <= DistanceThreshold
   }
 
-  def findSimilarMember(username: String): Option[TeamMember] = {
+  def findSimilarMember(username: String): Option[SimilarTeamMember] = {
     val normalizedUsername = normalize(username)
-    members.find { team =>
-      test(normalize(team.raw.user.username), normalizedUsername) ||
-      team.raw.nick.exists(x => test(normalize(x), normalizedUsername))
-    }
+    members.flatMap { team =>
+      val minDistance = (distance(normalize(team.raw.user.username), normalizedUsername) :: team.raw.nick
+        .map(x => distance(normalize(x), normalizedUsername))
+        .toList).min
+
+      if (minDistance == 0) {
+        Some(SimilarTeamMember(exactMatch = true, team))
+      } else if (minDistance > 0 && minDistance <= DistanceThreshold) {
+        Some(SimilarTeamMember(exactMatch = false, team))
+      } else {
+        None
+      }
+    }.headOption
   }
 
   /**
@@ -35,3 +44,5 @@ class SimilarMembersDetector(members: List[TeamMember]) {
     username.toLowerCase.filter(c => c >= 20 && c <= 255)
   }
 }
+
+case class SimilarTeamMember(exactMatch: Boolean, teamMember: TeamMember)
