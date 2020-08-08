@@ -93,42 +93,54 @@ class DiscordEventHandler(
     }
   }
 
+  // TODO: Remove hack, when the bot reconnects, we don't need to look for everyone
+  private var lookedForExistingScammersIn: Set[GuildId] = Set.empty
   private def lookForExistingScammers(channel: SharedState.ServerDetails)(implicit c: CacheSnapshot): Unit = {
-    logger.info(s"Look for existing scammers in the server = ${channel.notificationChannel.guildId}")
-    val result = for {
-      members <- discordAPI.getAllMembers(channel.notificationChannel.guildId)
-    } yield {
-      logger.info(s"There are ${members.size} members in the analyzed server = ${channel.notificationChannel.guildId}")
-      val scammers = members.flatMap { member =>
-        findPotentialScammer(channel, member.user, member.nick).map(_ -> member)
+    if (lookedForExistingScammersIn.contains(channel.notificationChannel.guildId)) {
+      ()
+    } else {
+      logger.info(s"Look for existing scammers in the server = ${channel.notificationChannel.guildId}")
+      val result = for {
+        members <- discordAPI.getAllMembers(channel.notificationChannel.guildId)
+      } yield {
+        logger.info(
+          s"There are ${members.size} members in the analyzed server = ${channel.notificationChannel.guildId}"
+        )
+        val scammers = members.flatMap { member =>
+          findPotentialScammer(channel, member.user, member.nick).map(_ -> member)
+        }
+
+        if (scammers.isEmpty) {
+          logger.info(
+            s"There are no potential scammers in the server = ${channel.notificationChannel.guildId}"
+          )
+        } else {
+          val scammerTextList = scammers.map(_._2.user.username).mkString("[", ",", "]")
+          logger.info(
+            s"There are ${scammers.size} potential scammers in the server = ${channel.notificationChannel.guildId}, banning them now: $scammerTextList"
+          )
+        }
+
+        lookedForExistingScammersIn = lookedForExistingScammersIn + channel.notificationChannel.guildId
+        scammers.foreach {
+          case (relatedTeamMember, scammer) =>
+            handlePotentialScammer(
+              channel,
+              scammer.user,
+              relatedTeamMember = relatedTeamMember
+            )
+        }
       }
 
-      if (scammers.isEmpty) {
-        logger.info(
-          s"There are no potential scammers in the server = ${channel.notificationChannel.guildId}"
-        )
-      } else {
-        val scammerTextList = scammers.map(_._2.user.username).mkString("[", ",", "]")
-        logger.info(
-          s"There are ${scammers.size} potential scammers in the server = ${channel.notificationChannel.guildId}, banning them now: $scammerTextList"
-        )
-      }
-
-      scammers.foreach {
-        case (relatedTeamMember, scammer) =>
-          handlePotentialScammer(
-            channel,
-            scammer.user,
-            relatedTeamMember = relatedTeamMember
+      result.onComplete {
+        case Success(_) =>
+          logger.info("Looked for existing members")
+        case Failure(ex) =>
+          logger.error(
+            s"Failed to look for existing scammers in the server = ${channel.notificationChannel.guildId}",
+            ex
           )
       }
-    }
-
-    result.onComplete {
-      case Success(_) =>
-        logger.info("Looked for existing members")
-      case Failure(ex) =>
-        logger.error(s"Failed to look for existing scammers in the server = ${channel.notificationChannel.guildId}", ex)
     }
   }
 
