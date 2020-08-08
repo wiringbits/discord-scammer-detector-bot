@@ -79,6 +79,9 @@ class DiscordEventHandler(
         val members = channel.members.map(_.raw.user.username).mkString(" | ")
         logger.info(s"Members for guild = ${channel.notificationChannel.name}, synced: $members")
         sharedState.add(channel)
+
+        // remove hacky way to trigger the action
+        lookForExistingScammers(channel)
       }
     }
 
@@ -87,6 +90,61 @@ class DiscordEventHandler(
       case Failure(ex) =>
         logger.warn(s"Failed to initialize", ex)
         sys.exit(1)
+    }
+  }
+
+  private def lookForExistingScammers(channel: SharedState.ServerDetails)(implicit c: CacheSnapshot): Unit = {
+    logger.info(s"Look for existing scammers in the server = ${channel.notificationChannel.guildId}")
+    val result = for {
+      members <- discordAPI.getAllMembers(channel.notificationChannel.guildId)
+    } yield {
+      logger.info(s"There are ${members.size} members in the analyzed server = ${channel.notificationChannel.guildId}")
+      val scammers = members.flatMap { member =>
+        findPotentialScammer(channel, member.user, member.nick).map(_ -> member)
+      }
+
+      if (scammers.isEmpty) {
+        logger.info(
+          s"There are no potential scammers in the server = ${channel.notificationChannel.guildId}"
+        )
+      } else {
+        val scammerTextList = scammers.map(_._2.user.username).mkString("[", ",", "]")
+        logger.info(
+          s"There are ${scammers.size} potential scammers in the server = ${channel.notificationChannel.guildId}, banning them now: $scammerTextList"
+        )
+      }
+
+      scammers.foreach {
+        case (relatedTeamMember, scammer) =>
+          handlePotentialScammer(
+            channel,
+            scammer.user,
+            relatedTeamMember = relatedTeamMember
+          )
+      }
+    }
+
+    result.onComplete {
+      case Success(_) =>
+        logger.info("Looked for existing members")
+      case Failure(ex) =>
+        logger.error(s"Failed to look for existing scammers in the server = ${channel.notificationChannel.guildId}", ex)
+    }
+  }
+
+  private def findPotentialScammer(
+      channel: SharedState.ServerDetails,
+      user: User,
+      nick: Option[String]
+  ): Option[TeamMember] = {
+    if (channel.members.exists(_.raw.user.id == user.id)) {
+      // a trusted member can change it's nickname
+      None
+    } else {
+      val similarMembersDetector = new SimilarMembersDetector(channel.members)
+      similarMembersDetector
+        .findSimilarMember(user.username)
+        .orElse { nick.flatMap(similarMembersDetector.findSimilarMember) }
     }
   }
 
@@ -99,31 +157,21 @@ class DiscordEventHandler(
   private def handleUser(channel: SharedState.ServerDetails, user: User, nick: Option[String])(
       implicit c: CacheSnapshot
   ): Unit = {
-    logger.info(s"Handling member, ${user.username}, nick = $nick, id = ${user.id}")
-    if (channel.members.exists(_.raw.user.id == user.id)) {
-      // a trusted member can change it's nickname
-      logger.info(s"A team member is changing it's nickname, user = ${user.username}, nick = $nick, id = ${user.id}")
-      ()
-    } else {
-      val similarMembersDetector = new SimilarMembersDetector(channel.members)
-      similarMembersDetector
-        .findSimilarMember(user.username)
-        .orElse { nick.flatMap(similarMembersDetector.findSimilarMember) }
-        .orElse {
-          logger.info(s"No matches found for ${user.username}, nick = $nick, id = ${user.id}")
-          None
-        }
-        .foreach { relatedTeamMember =>
-          logger.warn(
-            s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${relatedTeamMember.raw.user.username}"
-          )
-          handlePotentialScammer(
-            channel,
-            user,
-            relatedTeamMember = relatedTeamMember
-          )
-        }
-    }
+    findPotentialScammer(channel, user, nick)
+      .orElse {
+        logger.info(s"No matches found for ${user.username}, nick = $nick, id = ${user.id}")
+        None
+      }
+      .foreach { relatedTeamMember =>
+        logger.warn(
+          s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${relatedTeamMember.raw.user.username}"
+        )
+        handlePotentialScammer(
+          channel,
+          user,
+          relatedTeamMember = relatedTeamMember
+        )
+      }
   }
 
   /**
