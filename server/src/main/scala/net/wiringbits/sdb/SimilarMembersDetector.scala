@@ -22,9 +22,8 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   def findSimilarMember(username: String): Option[SimilarTeamMember] = {
     val normalizedUsername = normalize(username)
     members.flatMap { team =>
-      val minDistance = (distance(normalize(team.raw.user.username), normalizedUsername) :: team.raw.nick
-        .map(x => distance(normalize(x), normalizedUsername))
-        .toList).min
+      val minDistance =
+        Array(compareSimilarUsername(team, normalizedUsername), compareWordInUsername(normalizedUsername)).min
 
       if (minDistance == 0) {
         Some(SimilarTeamMember(exactMatch = true, team))
@@ -34,6 +33,17 @@ class SimilarMembersDetector(members: List[TeamMember]) {
         None
       }
     }.headOption
+  }
+
+  private def compareSimilarUsername(team: TeamMember, normalizedUsername: String): Int = {
+    (distance(normalize(team.raw.user.username), normalizedUsername) :: team.raw.nick
+      .map(x => distance(normalize(x), normalizedUsername))
+      .toList).min
+  }
+
+  private def compareWordInUsername(normalizedUsername: String): Int = {
+    val keywords = Array[String]("support", "help")
+    keywords.map(keyword => distance(normalizedUsername, keyword)).toList.min
   }
 
   /**
