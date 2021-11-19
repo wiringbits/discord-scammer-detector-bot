@@ -63,7 +63,8 @@ class DiscordEventHandler(
         .getNotificationChannel(guildId, config)
         .flatMap {
           case None => throw new RuntimeException(s"Missing notification channel for guild = $guildId")
-          case Some(channel) => getMembers(guildId, config.members).map(SharedState.ServerDetails(channel, _))
+          case Some(channel) =>
+            getMembers(guildId, config.members).map(x => SharedState.ServerDetails(channel, x, config.blacklist))
         }
     }
 
@@ -153,10 +154,10 @@ class DiscordEventHandler(
       // a trusted member can change it's nickname
       None
     } else {
-      val similarMembersDetector = new SimilarMembersDetector(channel.members)
-      similarMembersDetector
-        .findSimilarMember(user.username)
-        .orElse { nick.flatMap(similarMembersDetector.findSimilarMember) }
+      val potentialScammerDetector = new PotentialScammerDetector(channel.members, channel.blacklist)
+      potentialScammerDetector
+        .findPotentialScammer(user.username)
+        .orElse { nick.flatMap(potentialScammerDetector.findPotentialScammer) }
     }
   }
 

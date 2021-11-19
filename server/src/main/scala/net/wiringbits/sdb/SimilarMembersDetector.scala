@@ -6,7 +6,7 @@ import org.apache.commons.text.similarity.LevenshteinDistance
  * Just a simple way to find how similar are two members by using the levenshtein distance.
  * @param members the trusted members to compare potential scammers to
  */
-class SimilarMembersDetector(members: List[TeamMember]) {
+class PotentialScammerDetector(members: List[TeamMember], blacklist: Option[List[String]]) {
 
   // Similarities smaller that this value lead to potential scammers
   // Higher values means slower runtime, and leads to most matches but anything above 3
@@ -19,11 +19,15 @@ class SimilarMembersDetector(members: List[TeamMember]) {
     x >= 0 && x <= DistanceThreshold
   }
 
-  def findSimilarMember(username: String): Option[SimilarTeamMember] = {
+  def findPotentialScammer(username: String): Option[SimilarTeamMember] = {
+    println(username)
     val normalizedUsername = normalize(username)
+    val distanceInWord = compareWordInUsername(normalizedUsername)
     members.flatMap { team =>
+      println(compareSimilarUsername(team, normalizedUsername))
+
       val minDistance =
-        Array(compareSimilarUsername(team, normalizedUsername), compareWordInUsername(normalizedUsername)).min
+        Array(compareSimilarUsername(team, normalizedUsername), distanceInWord).min
 
       if (minDistance == 0) {
         Some(SimilarTeamMember(exactMatch = true, team))
@@ -42,8 +46,9 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   }
 
   private def compareWordInUsername(normalizedUsername: String): Int = {
-    val keywords = Array[String]("support", "help")
-    keywords.map(keyword => distance(normalizedUsername, keyword)).toList.min
+    blacklist
+      .map(_.map(distance(normalizedUsername, _)).min.intValue)
+      .getOrElse(DistanceThreshold + 1)
   }
 
   /**

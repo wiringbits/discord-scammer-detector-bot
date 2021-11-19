@@ -33,5 +33,9 @@ class SharedState {
 }
 
 object SharedState {
-  case class ServerDetails(notificationChannel: GuildChannel, members: List[TeamMember])
+  case class ServerDetails(
+      notificationChannel: GuildChannel,
+      members: List[TeamMember],
+      blacklist: Option[List[String]]
+  )
 }
