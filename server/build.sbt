@@ -38,3 +38,5 @@ libraryDependencies += "com.typesafe" % "config" % "1.4.0"
 libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.25"
 libraryDependencies += "ch.qos.logback" % "logback-core" % "1.2.3"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
+
+libraryDependencies += "org.scalameta" %% "munit" % "0.7.29" % Test
