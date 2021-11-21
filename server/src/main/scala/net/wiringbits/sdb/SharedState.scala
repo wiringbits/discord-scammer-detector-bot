@@ -36,6 +36,6 @@ object SharedState {
   case class ServerDetails(
       notificationChannel: GuildChannel,
       members: List[TeamMember],
-      blacklist: Option[List[String]]
+      forbiddenWords: List[String]
   )
 }

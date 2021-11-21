@@ -3,13 +3,12 @@ package net.wiringbits.sdb.config
 import com.typesafe.config.Config
 
 import scala.jdk.CollectionConverters.CollectionHasAsScala
-import scala.util.Try
 
 case class DiscordServerConfig(
     name: String,
     notificationsChannelName: String,
     members: List[String],
-    blacklist: Option[List[String]]
+    forbiddenWords: List[String]
 )
 
 object DiscordServerConfig {
@@ -23,21 +22,18 @@ object DiscordServerConfig {
       .toList
       .map(_.trim)
       .filter(_.nonEmpty)
-    val blacklist = Try(
-      Option(
-        config
-          .getStringList("blacklist")
-          .asScala
-          .toList
-          .map(_.trim)
-      )
-    ).getOrElse(None)
+    val forbiddenWords =
+      config
+        .getStringList("forbiddenWords")
+        .asScala
+        .toList
+        .map(_.trim)
 
     DiscordServerConfig(
       name = name,
       notificationsChannelName = notificationsChannelName,
       members = members,
-      blacklist = blacklist
+      forbiddenWords = forbiddenWords
     )
   }
 }
