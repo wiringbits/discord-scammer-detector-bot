@@ -108,11 +108,12 @@ class DiscordEventHandler(
         logger.info(
           s"There are ${members.size} members in the analyzed server = ${channel.notificationChannel.guildId}"
         )
-        val scammers = members.map { member =>
+        val potentialScammers = members.map { member =>
           (analyzePotentialScammer(channel, member.user, member.nick), member)
         }
 
-        if (scammers.forall(_._1 == ScammerAnalysisResult.NoMatches)) {
+        val scammers = potentialScammers.find(_._1 != ScammerAnalysisResult.NoMatches)
+        if (scammers.isEmpty) {
           logger.info(
             s"There are no potential scammers in the server = ${channel.notificationChannel.guildId}"
           )
@@ -247,9 +248,6 @@ class DiscordEventHandler(
           discordAPI.sendMessage(channel.notificationChannel, msg)
       }
     }
-
-    val msg = s"@everyone Potential scammer needs to be verified manually: " + suffix
-    discordAPI.sendMessage(channel.notificationChannel, msg)
 
     val exactMatch = scammerResult match {
       case ScammerAnalysisResult.ForbiddenWordFound(_, exactMatch) => exactMatch
