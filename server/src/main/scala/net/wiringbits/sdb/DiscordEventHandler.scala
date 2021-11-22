@@ -163,7 +163,7 @@ class DiscordEventHandler(
         .orElse {
           nick.flatMap(forbiddenWordsDetector.findMatch)
         }
-        .map(x => ScammerAnalysisResult.ForbiddenWordFound.apply(x.word))
+        .map(x => ScammerAnalysisResult.ForbiddenWordFound.apply(x.word, x.exactMatch))
         .getOrElse(ScammerAnalysisResult.NoMatches)
 
       val similarMember = similarMembersDetector
@@ -171,7 +171,7 @@ class DiscordEventHandler(
         .orElse {
           nick.flatMap(similarMembersDetector.findSimilarMember)
         }
-        .map(x => ScammerAnalysisResult.SimilarTeamMemberFound.apply(x.teamMember))
+        .map(x => ScammerAnalysisResult.SimilarTeamMemberFound.apply(x.teamMember, x.exactMatch))
         .getOrElse(ScammerAnalysisResult.NoMatches)
 
       if (forbiddenWords == ScammerAnalysisResult.NoMatches) {
@@ -197,8 +197,8 @@ class DiscordEventHandler(
       logger.info(s"No matches found for ${user.username}, nick = $nick, id = ${user.id}")
     } else {
       val msg = s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to " + (scammerAnalysisResult match {
-        case ScammerAnalysisResult.ForbiddenWordFound(word) => word
-        case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember) => teamMember.raw.user.username
+        case ScammerAnalysisResult.ForbiddenWordFound(word, _) => word
+        case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember, _) => teamMember.raw.user.username
       })
       logger.warn(
         msg
@@ -220,9 +220,9 @@ class DiscordEventHandler(
       scammerResult: ScammerAnalysisResult
   )(implicit c: CacheSnapshot): Unit = {
     val suffix = scammerResult match {
-      case ScammerAnalysisResult.ForbiddenWordFound(word) =>
+      case ScammerAnalysisResult.ForbiddenWordFound(word, _) =>
         s"${scammer.mention} has the blacklisted keyword: $word as name"
-      case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember) =>
+      case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember, _) =>
         s"${scammer.mention} looks very similar to our team member ${teamMember.raw.user.mention}"
     }
 
@@ -234,8 +234,8 @@ class DiscordEventHandler(
 
         case Failure(ex) =>
           val relatedTo = scammerResult match {
-            case ScammerAnalysisResult.ForbiddenWordFound(word) => word
-            case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember) =>
+            case ScammerAnalysisResult.ForbiddenWordFound(word, _) => word
+            case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember, _) =>
               teamMember.raw.user.username
           }
           logger.warn(
@@ -250,14 +250,17 @@ class DiscordEventHandler(
 
     val msg = s"@everyone Potential scammer needs to be verified manually: " + suffix
     discordAPI.sendMessage(channel.notificationChannel, msg)
-    /*
-    if (scammerResult.exactMatch) {
+
+    val exactMatch = scammerResult match {
+      case ScammerAnalysisResult.ForbiddenWordFound(_, exactMatch) => exactMatch
+      case ScammerAnalysisResult.SimilarTeamMemberFound(_, exactMatch) => exactMatch
+    }
+    if (exactMatch) {
       doBan()
     } else {
       val msg = s"@everyone Potential scammer needs to be verified manually: " + suffix
       discordAPI.sendMessage(channel.notificationChannel, msg)
     }
-   */
   }
 
   /**

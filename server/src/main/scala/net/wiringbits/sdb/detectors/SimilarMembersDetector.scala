@@ -27,9 +27,13 @@ class SimilarMembersDetector(members: List[TeamMember]) {
         .map(x => distance(normalize(x), normalizedUsername))
         .toList).min
 
-      if (minDistance == 0) Some(SimilarTeamMember(exactMatch = true, team))
-      else if (minDistance > 0 && minDistance <= DistanceThreshold) Some(SimilarTeamMember(exactMatch = false, team))
-      else None
+      if (minDistance == 0) {
+        Some(SimilarTeamMember(team, exactMatch = true))
+      } else if (minDistance > 0 && minDistance <= DistanceThreshold) {
+        Some(SimilarTeamMember(team, exactMatch = false))
+      } else {
+        None
+      }
     }.headOption
   }
 
@@ -42,4 +46,4 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   }
 }
 
-case class SimilarTeamMember(exactMatch: Boolean, teamMember: TeamMember)
+case class SimilarTeamMember(teamMember: TeamMember, exactMatch: Boolean)
