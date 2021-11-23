@@ -109,7 +109,7 @@ class DiscordEventHandler(
           s"There are ${members.size} members in the analyzed server = ${channel.notificationChannel.guildId}"
         )
         val potentialScammers = members.map { member =>
-          member _ -> analyzePotentialScammer(channel, member.user, member.nick)
+          member -> analyzePotentialScammer(channel, member.user, member.nick)
         }
 
         val scammers = potentialScammers.find(_._2 != ScammerAnalysisResult.NoMatches)
@@ -237,6 +237,7 @@ class DiscordEventHandler(
 
     val exactMatch = scammerResult match {
       case ScammerAnalysisResult.SimilarTeamMemberFound(_, exactMatch) => exactMatch
+      case ScammerAnalysisResult.ForbiddenWordFound(_) => false
     }
 
     if (exactMatch) {
