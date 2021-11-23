@@ -16,7 +16,7 @@ class ForbiddenWordsDetectorSpec extends FunSuite {
     val prohibitedWordDetector = new ForbiddenWordsDetector(List("support", "help"))
 
     val response = prohibitedWordDetector.findMatch(username)
-    assertEquals(response, Some(ForbiddenWordMatched(username, exactMatch = true)))
+    assertEquals(response, Some(ForbiddenWordMatched(username)))
   }
 
   test("should find an almost exact match") {
@@ -24,7 +24,7 @@ class ForbiddenWordsDetectorSpec extends FunSuite {
     val prohibitedWordDetector = new ForbiddenWordsDetector(List("support", "help"))
 
     val response = prohibitedWordDetector.findMatch(username)
-    assertEquals(response, Some(ForbiddenWordMatched("support", exactMatch = false)))
+    assertEquals(response, Some(ForbiddenWordMatched("support")))
   }
 
   test("should match if contains") {
@@ -32,6 +32,6 @@ class ForbiddenWordsDetectorSpec extends FunSuite {
     val prohibitedWordDetector = new ForbiddenWordsDetector(List("support", "help"))
 
     val response = prohibitedWordDetector.findMatch(username)
-    assertEquals(response, Some(ForbiddenWordMatched("help", exactMatch = true)))
+    assertEquals(response, Some(ForbiddenWordMatched("help")))
   }
 }

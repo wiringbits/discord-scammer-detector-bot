@@ -15,16 +15,12 @@ class ForbiddenWordsDetector(forbiddenWords: List[String]) {
     val (word, minDistance) = compareWordInUsername(normalizedUsername)
     val (forbiddenWord, containsForbiddenWord) = checkIfContains(username)
 
-    if (minDistance == 0 || containsForbiddenWord) {
-      Some(ForbiddenWordMatched(word, exactMatch = true))
-    } else if (minDistance > 0 && minDistance <= DistanceThreshold) {
-      Some(ForbiddenWordMatched(word, exactMatch = false))
+    if (minDistance >= 0 && minDistance <= DistanceThreshold) {
+      Some(ForbiddenWordMatched(word))
+    } else if (containsForbiddenWord) {
+      Some(ForbiddenWordMatched(forbiddenWord))
     } else {
-      if (containsForbiddenWord) {
-        Some(ForbiddenWordMatched(forbiddenWord, exactMatch = true))
-      } else {
-        None
-      }
+      None
     }
   }
 
@@ -43,4 +39,4 @@ class ForbiddenWordsDetector(forbiddenWords: List[String]) {
   }
 }
 
-case class ForbiddenWordMatched(word: String, exactMatch: Boolean)
+case class ForbiddenWordMatched(word: String)
