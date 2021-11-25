@@ -1,5 +1,6 @@
-package net.wiringbits.sdb
+package net.wiringbits.sdb.detectors
 
+import net.wiringbits.sdb.TeamMember
 import org.apache.commons.text.similarity.LevenshteinDistance
 
 /**
@@ -14,7 +15,7 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   private val DistanceThreshold = 1
   private val distance = new LevenshteinDistance(DistanceThreshold)
 
-  private def test(member: String, other: String): Boolean = {
+  private def test(member: String, other: String) = {
     val x = distance(member, other)
     x >= 0 && x <= DistanceThreshold
   }
@@ -27,9 +28,9 @@ class SimilarMembersDetector(members: List[TeamMember]) {
         .toList).min
 
       if (minDistance == 0) {
-        Some(SimilarTeamMember(exactMatch = true, team))
+        Some(SimilarTeamMember(team, exactMatch = true))
       } else if (minDistance > 0 && minDistance <= DistanceThreshold) {
-        Some(SimilarTeamMember(exactMatch = false, team))
+        Some(SimilarTeamMember(team, exactMatch = false))
       } else {
         None
       }
@@ -45,4 +46,4 @@ class SimilarMembersDetector(members: List[TeamMember]) {
   }
 }
 
-case class SimilarTeamMember(exactMatch: Boolean, teamMember: TeamMember)
+case class SimilarTeamMember(teamMember: TeamMember, exactMatch: Boolean)

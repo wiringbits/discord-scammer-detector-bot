@@ -3,6 +3,7 @@ package net.wiringbits.sdb
 import ackcord.data.{GuildId, User, UserId}
 import ackcord.{APIMessage, CacheSnapshot}
 import net.wiringbits.sdb.config.DiscordServerConfig
+import net.wiringbits.sdb.detectors.{ForbiddenWordsDetector, SimilarMembersDetector}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -63,7 +64,8 @@ class DiscordEventHandler(
         .getNotificationChannel(guildId, config)
         .flatMap {
           case None => throw new RuntimeException(s"Missing notification channel for guild = $guildId")
-          case Some(channel) => getMembers(guildId, config.members).map(SharedState.ServerDetails(channel, _))
+          case Some(channel) =>
+            getMembers(guildId, config.members).map(x => SharedState.ServerDetails(channel, x, config.forbiddenWords))
         }
     }
 
@@ -106,16 +108,17 @@ class DiscordEventHandler(
         logger.info(
           s"There are ${members.size} members in the analyzed server = ${channel.notificationChannel.guildId}"
         )
-        val scammers = members.flatMap { member =>
-          findPotentialScammer(channel, member.user, member.nick).map(_ -> member)
+        val potentialScammers = members.map { member =>
+          member -> analyzePotentialScammer(channel, member.user, member.nick)
         }
 
+        val scammers = potentialScammers.find(_._2 != ScammerAnalysisResult.NoMatches)
         if (scammers.isEmpty) {
           logger.info(
             s"There are no potential scammers in the server = ${channel.notificationChannel.guildId}"
           )
         } else {
-          val scammerTextList = scammers.map(_._2.user.username).mkString("[", ",", "]")
+          val scammerTextList = scammers.map(_._1.user.username).mkString("[", ",", "]")
           logger.info(
             s"There are ${scammers.size} potential scammers in the server = ${channel.notificationChannel.guildId}, banning them now: $scammerTextList"
           )
@@ -123,11 +126,11 @@ class DiscordEventHandler(
 
         lookedForExistingScammersIn = lookedForExistingScammersIn + channel.notificationChannel.guildId
         scammers.foreach {
-          case (relatedTeamMember, scammer) =>
+          case (scammer, scammerResult) =>
             handlePotentialScammer(
               channel,
               scammer.user,
-              relatedTeamMember = relatedTeamMember
+              scammerResult
             )
         }
       }
@@ -144,20 +147,41 @@ class DiscordEventHandler(
     }
   }
 
-  private def findPotentialScammer(
+  private def analyzePotentialScammer(
       channel: SharedState.ServerDetails,
       user: User,
       nick: Option[String]
-  ): Option[SimilarTeamMember] = {
+  ): ScammerAnalysisResult = {
     if (channel.members.exists(_.raw.user.id == user.id)) {
       // a trusted member can change it's nickname
-      None
+      ScammerAnalysisResult.NoMatches
     } else {
       val similarMembersDetector = new SimilarMembersDetector(channel.members)
-      similarMembersDetector
+      val forbiddenWordsDetector = new ForbiddenWordsDetector(channel.forbiddenWords)
+
+      val forbiddenWords = forbiddenWordsDetector
+        .findMatch(user.username)
+        .orElse {
+          nick.flatMap(forbiddenWordsDetector.findMatch)
+        }
+        .map(x => ScammerAnalysisResult.ForbiddenWordFound.apply(x.word))
+        .getOrElse(ScammerAnalysisResult.NoMatches)
+
+      val similarMember = similarMembersDetector
         .findSimilarMember(user.username)
-        .orElse { nick.flatMap(similarMembersDetector.findSimilarMember) }
+        .orElse {
+          nick.flatMap(similarMembersDetector.findSimilarMember)
+        }
+        .map(x => ScammerAnalysisResult.SimilarTeamMemberFound.apply(x.teamMember, x.exactMatch))
+        .getOrElse(ScammerAnalysisResult.NoMatches)
+
+      if (forbiddenWords == ScammerAnalysisResult.NoMatches) {
+        similarMember
+      } else {
+        forbiddenWords
+      }
     }
+
   }
 
   /**
@@ -169,21 +193,20 @@ class DiscordEventHandler(
   private def handleUser(channel: SharedState.ServerDetails, user: User, nick: Option[String])(
       implicit c: CacheSnapshot
   ): Unit = {
-    findPotentialScammer(channel, user, nick)
-      .orElse {
-        logger.info(s"No matches found for ${user.username}, nick = $nick, id = ${user.id}")
-        None
-      }
-      .foreach { relatedTeamMember =>
-        logger.warn(
-          s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${relatedTeamMember.teamMember.raw.user.username}"
-        )
-        handlePotentialScammer(
-          channel,
-          user,
-          relatedTeamMember = relatedTeamMember
-        )
-      }
+    val scammerAnalysisResult = analyzePotentialScammer(channel, user, nick)
+    if (scammerAnalysisResult == ScammerAnalysisResult.NoMatches) {
+      logger.info(s"No matches found for ${user.username}, nick = $nick, id = ${user.id}")
+    } else {
+      logger.warn(
+        s"Found potential scammer: ${user.username}, nick = $nick, id = ${user.id} similar to ${BotMessage
+          .similarTo(scammerAnalysisResult)}"
+      )
+      handlePotentialScammer(
+        channel,
+        user,
+        scammerAnalysisResult
+      )
+    }
   }
 
   /**
@@ -192,32 +215,36 @@ class DiscordEventHandler(
   private def handlePotentialScammer(
       channel: SharedState.ServerDetails,
       scammer: User,
-      relatedTeamMember: SimilarTeamMember
+      scammerResult: ScammerAnalysisResult
   )(implicit c: CacheSnapshot): Unit = {
     def doBan(): Unit = {
       discordAPI.banMember(channel.notificationChannel.guildId, scammer.id).onComplete {
         case Success(_) =>
-          val msg =
-            s"Potential scammer banned! ${scammer.mention} looks very similar to our team member ${relatedTeamMember.teamMember.raw.user.mention}"
+          val msg = BotMessage
+            .scammerBanned(scammer, scammerResult.asInstanceOf[ScammerAnalysisResult.SimilarTeamMemberFound])
           discordAPI.sendMessage(channel.notificationChannel, msg)
 
         case Failure(ex) =>
           logger.warn(
-            s"Failed to ban potential scammer, guild = ${channel.notificationChannel.guildId}, id = ${scammer.id}, username = ${scammer.username}, relalted to ${relatedTeamMember.teamMember.raw.user.username}",
+            s"Failed to ban potential scammer, guild = ${channel.notificationChannel.guildId}, id = ${scammer.id}, username = ${scammer.username}, related to ${BotMessage
+              .similarTo(scammerResult)}",
             ex
           )
 
-          val msg =
-            s"Potential scammer needs to be banned manually: ${scammer.mention} looks very similar to our team member ${relatedTeamMember.teamMember.raw.user.mention}"
+          val msg = BotMessage.scammerNeedsToBeVerified(scammer, scammerResult)
           discordAPI.sendMessage(channel.notificationChannel, msg)
       }
     }
 
-    if (relatedTeamMember.exactMatch) {
+    val exactMatch = scammerResult match {
+      case ScammerAnalysisResult.SimilarTeamMemberFound(_, exactMatch) => exactMatch
+      case ScammerAnalysisResult.ForbiddenWordFound(_) => false
+    }
+
+    if (exactMatch) {
       doBan()
     } else {
-      val msg =
-        s"@everyone Potential scammer needs to be verified manually: ${scammer.mention} looks very similar to our team member ${relatedTeamMember.teamMember.raw.user.mention}"
+      val msg = BotMessage.everyoneScammerNeedsToBeVerified(scammer, scammerResult)
       discordAPI.sendMessage(channel.notificationChannel, msg)
     }
   }
