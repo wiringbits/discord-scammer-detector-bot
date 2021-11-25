@@ -220,7 +220,8 @@ class DiscordEventHandler(
     def doBan(): Unit = {
       discordAPI.banMember(channel.notificationChannel.guildId, scammer.id).onComplete {
         case Success(_) =>
-          val msg = BotMessage.scammerBanned(scammer, scammerResult)
+          val msg = BotMessage
+            .scammerBanned(scammer, scammerResult.asInstanceOf[ScammerAnalysisResult.SimilarTeamMemberFound])
           discordAPI.sendMessage(channel.notificationChannel, msg)
 
         case Failure(ex) =>

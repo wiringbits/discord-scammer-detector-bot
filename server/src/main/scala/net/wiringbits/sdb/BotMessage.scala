@@ -11,30 +11,25 @@ object BotMessage {
     }
   }
 
-  def scammerBanned(scammer: User, scammerAnalysisResult: ScammerAnalysisResult): String = {
-    scammerAnalysisResult match {
-      case ScammerAnalysisResult.ForbiddenWordFound(word) =>
-        s"Potential scammer banned! ${scammer.mention} has the blacklisted keyword: $word as name"
-      case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember, _) =>
-        s"Potential scammer banned! ${scammer.mention} looks very similar to our team member ${teamMember.raw.user.mention}"
-    }
+  def scammerBanned(scammer: User, scammerAnalysisResult: ScammerAnalysisResult.SimilarTeamMemberFound): String = {
+    s"Potential scammer banned! ${scammer.mention} looks very similar to our team member ${scammerAnalysisResult.teamMember.raw.user.mention}"
   }
 
   def scammerNeedsToBeVerified(scammer: User, scammerAnalysisResult: ScammerAnalysisResult): String = {
     scammerAnalysisResult match {
       case ScammerAnalysisResult.ForbiddenWordFound(word) =>
-        s"Potential scammer needs to be banned manually: ${scammer.mention} has the blacklisted keyword: $word as name"
+        s"Potential scammer needs to be reviewed manually: ${scammer.mention} has a risky keyword in its name: $word"
       case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember, _) =>
-        s"Potential scammer needs to be banned manually: ${scammer.mention} looks very similar to our team member ${teamMember.raw.user.mention}"
+        s"Potential scammer needs to be reviewed manually: ${scammer.mention} looks very similar to our team member ${teamMember.raw.user.mention}"
     }
   }
 
   def everyoneScammerNeedsToBeVerified(scammer: User, scammerAnalysisResult: ScammerAnalysisResult): String = {
     scammerAnalysisResult match {
       case ScammerAnalysisResult.ForbiddenWordFound(word) =>
-        s"@everyone Potential scammer needs to be verified manually: ${scammer.mention} has the blacklisted keyword: $word as name"
+        s"@everyone Potential scammer needs to be reviewed manually: ${scammer.mention} has a risky keyword in its name: $word"
       case ScammerAnalysisResult.SimilarTeamMemberFound(teamMember, _) =>
-        s"@everyone Potential scammer needs to be verified manually: ${scammer.mention} looks very similar to our team member ${teamMember.raw.user.mention}"
+        s"@everyone Potential scammer needs to be reviewed manually: ${scammer.mention} looks very similar to our team member ${teamMember.raw.user.mention}"
     }
   }
 
