@@ -32,7 +32,7 @@ assemblyMergeStrategy in assembly := {
 
 resolvers += Resolver.JCenterRepository
 libraryDependencies += "net.katsstuff" %% "ackcord" % "0.17.0-M2"
-libraryDependencies += "org.apache.commons" % "commons-text" % "1.8"
+libraryDependencies += "org.apache.commons" % "commons-text" % "1.9"
 libraryDependencies += "com.typesafe" % "config" % "1.4.0"
 
 libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.32"
