@@ -5,9 +5,9 @@ version := "1.0-SNAPSHOT"
 
 scalaVersion := "2.13.1"
 
-fork in Test := true
+(Test / fork) := true
 
-assemblyMergeStrategy in assembly := {
+(assembly / assemblyMergeStrategy) := {
   case x if Assembly.isConfigFile(x) =>
     MergeStrategy.concat
   case PathList(ps @ _*) if Assembly.isReadme(ps.last) || Assembly.isLicenseFile(ps.last) =>
