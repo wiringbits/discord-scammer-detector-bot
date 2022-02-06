@@ -33,7 +33,7 @@ scalaVersion := "2.13.8"
 resolvers += Resolver.JCenterRepository
 libraryDependencies += "net.katsstuff" %% "ackcord" % "0.17.1"
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.9"
-libraryDependencies += "com.typesafe" % "config" % "1.4.1"
+libraryDependencies += "com.typesafe" % "config" % "1.4.2"
 
 libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.35"
 libraryDependencies += "ch.qos.logback" % "logback-core" % "1.2.10"
