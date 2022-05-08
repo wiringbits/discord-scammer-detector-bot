@@ -31,7 +31,7 @@ scalaVersion := "2.13.8"
 }
 
 resolvers += Resolver.JCenterRepository
-libraryDependencies += "net.katsstuff" %% "ackcord" % "0.17.1"
+libraryDependencies += "net.katsstuff" %% "ackcord" % "0.18.0"
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.9"
 libraryDependencies += "com.typesafe" % "config" % "1.4.2"
 
