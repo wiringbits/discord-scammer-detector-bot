@@ -3,7 +3,7 @@ organization := "net.wiringbits"
 
 version := "1.0-SNAPSHOT"
 
-scalaVersion := "2.13.8"
+scalaVersion := "2.13.9"
 
 (Test / fork) := true
 
